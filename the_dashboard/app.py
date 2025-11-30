@@ -17,18 +17,33 @@ from data.dataframes.neo_df import neo_to_dataframe
 from data.dataframes.locations import LOCATIONS_SWEDEN
 
 
-# Load the data
-data = get_apod()
-
 
 # Import the graphs
 from graphs.weather_charts import cloud_visibility_chart, temp_humidity_chart  # noqa: E402
 from graphs.neo_charts import neo_summary_metrics, neo_scatter_plot  # noqa: E402
 from graphs.stargazing_score import compute_stargazing_score, plot_stargazing_score  # noqa: E402
 
+# Fetching/Loading and caching data from APIs
+
+# Wrapping the apis in @st.cache_data to cache results and avoid hitting rate limits/reduce lag
+@st.cache_data(ttl = 72000) # setting it to 20 hours as APOD only updates once a day
+def get_apod_cached():
+    return get_apod()
+
+@st.cache_data(ttl = 1800)
+def get_weather_cached(lat, lon):
+    raw_weather = get_weather(lat, lon)
+    df_hours, astro_info = weather_to_df(raw_weather)
+    return df_hours, astro_info
+
+@st.cache_data(ttl = 3600)
+def get_neo_cached(date):
+    raw_neo = get_neo(date)
+    neo_df = neo_to_dataframe(raw_neo)
+    return neo_df
 
 
-# helper function for the fucking APOD banner
+# helper function for the APOD banner
 def apod_banner(url: str, height: int = 350):
     st.markdown(
         f"""
@@ -48,7 +63,7 @@ def apod_banner(url: str, height: int = 350):
 st.set_page_config(page_title="Astral Forecast", layout="wide")
 
 # get the apod image and data
-data = get_apod()
+data = get_apod_cached()
 
 st.title("Astral Forecast")
 
@@ -58,9 +73,14 @@ st.write("Clear skies or cosmic chaos? Sweden’s stargazing conditions tonight.
 # Banner using the helper function
 apod_banner(data["url"], height=350)
 
-# Explanation text
+
+# Explanation text and link to full-res image
 with st.expander("About today's image"):
     st.write(data["explanation"])
+    if "hdurl" in data:
+        st.markdown(f"[🔗 View full-resolution image]({data['hdurl']})")
+    else:
+        st.markdown(f"[🔗 View full image]({data['url']})")
 
 st.markdown("---")
 
@@ -73,25 +93,38 @@ st.header("Choose your stargazing location")
 location_name = st.selectbox("Location", list(LOCATIONS_SWEDEN.keys()))
 coords = LOCATIONS_SWEDEN[location_name]
 
-tab1, tab2, tab3, tab4= st.tabs(["Overview", "Weather Overview", "Near-Earth Objects", "Stargazing Score"])
+
+night = None
+astro_info = None
+neo_df = None
+
+if coords is not None:
+    lat, lon = coords
+
+    # Fetch weather data for this location (cached)
+    df_hours, astro_info = get_weather_cached(lat, lon)
+
+    # Fetch today's NEO data (cached)
+    today = date.today()
+    neo_df = get_neo_cached(today)
+
+    # Only looking at nighttime hours for now
+    night = df_hours[df_hours["is_day"] == 0].copy()
+else:
+    st.info("Custom coordinates not implemented yet.")
+
+
+# Different sections/tabs for different parts of the dashboard
+tab1, tab2, tab3, tab4 = st.tabs(
+    ["Overview", "Weather Overview", "Near-Earth Objects", "Stargazing Score"]
+)
+
+#  Tab 1: Overview 
 
 with tab1:
-
-    if coords is not None:
-        lat, lon = coords
-
-        # Fetch data *for this location*
-        raw_weather = get_weather(lat, lon)
-        df_hours, astro_info = weather_to_df(raw_weather)
-
-        # Fetch today's NEO data
-        today = date.today()
-        raw_neo = get_neo(today)
-        neo_df = neo_to_dataframe(raw_neo)
-
-        # Only looking at nighttime hours for now
-        night = df_hours[df_hours["is_day"] == 0].copy()
-
+    if night is None or astro_info is None:
+        st.warning("Select a location to see tonight's overview.")
+    else:
         st.subheader(f"Tonight in {location_name}")
 
         col_a, col_b, col_c, col_d = st.columns(4, border=True)
@@ -111,68 +144,79 @@ with tab1:
             st.metric("🔭 Max visibility (night)", f"{max_vis:.1f} km")
 
         with col_d:
-            st.metric(
-                "☀️ Sunset",
-                astro_info["sunset"]
-            )
-    else:
-        st.info("Custom coordinates not implemented yet.")
+            st.metric("☀️ Sunset", astro_info["sunset"])
+
+# Tab 2: Weather Overview 
 
 with tab2:
-    st.subheader("Cloud cover & visibility (night hours)")
-    cloud_visibility_chart(night)
-    st.caption(
-        "**Solid line** = Cloud cover (%) — lower is better\n"
-        "**Dashed gray line** = Visibility (km) — higher is better"
-    )
+    if night is None:
+        st.warning("Select a location to see weather details.")
+    else:
+        st.subheader("Cloud cover & visibility (night hours)")
+        cloud_visibility_chart(night)
+        st.caption(
+            "**Solid line** = Cloud cover (%) — lower is better\n"
+            "**Dashed gray line** = Visibility (km) — higher is better"
+        )
 
-    st.subheader("Temperature & humidity (night hours)")
-    temp_humidity_chart(night)
-    st.caption(
-        "**Solid line** = Temperature (°C)\n"
-        "**Dashed gray line** = Humidity (%) — higher humidity means haze & condensation"
-    )
+        st.subheader("Temperature & humidity (night hours)")
+        temp_humidity_chart(night)
+        st.caption(
+            "**Solid line** = Temperature (°C)\n"
+            "**Dashed gray line** = Humidity (%) — "
+            "higher humidity means haze & condensation"
+        )
+
+# Tab 3: Near-Earth Objects 
 
 with tab3:
-    st.subheader("Today's near-Earth objects")
+    if neo_df is None:
+        st.warning("Select a location to see NEO data.")
+    else:
+        st.subheader("Today's near-Earth objects")
 
-    neo_summary_metrics(neo_df)
+        neo_summary_metrics(neo_df)
 
-    st.markdown("#### Size vs distance")
-    neo_scatter_plot(neo_df)
-    st.caption(
-        "Points further left are closer to Earth (in Moon–Earth distances); "
-        "points higher up are larger asteroids. Red markers are classified as potentially hazardous."
-    )
+        st.markdown("#### Size vs distance")
+        neo_scatter_plot(neo_df)
+        st.caption(
+            "Points further left are closer to Earth (in Moon–Earth distances); "
+            "points higher up are larger asteroids. Red markers are classified as potentially hazardous."
+        )
+
+# Tab 4: Stargazing Score 
 
 with tab4:
-    st.subheader(f"✨ Stargazing score for tonight in {location_name}")
-
-    score_df = compute_stargazing_score(night, astro_info)
-
-    overall_score = score_df["score"].mean()
-
-    col1, col2 = st.columns(2, gap="large", border=True)
-
-    with col1:
-        st.metric("Overall stargazing score (night)", f"{overall_score:.0f} / 100")
-
-    # score verdict
-    score_10 = overall_score / 10
-    if score_10 >= 8:
-        verdict = "✨ Incredible night — go outside!"
-    elif score_10 >= 6:
-        verdict = "🌙 Pretty good — worth a look."
-    elif score_10 >= 4:
-        verdict = "🌥 Meh — sky conditions mixed."
+    if night is None or astro_info is None:
+        st.warning("Select a location to see the stargazing score.")
     else:
-        verdict = "☁ Not a great night for stargazing."
-    with col2:
-        st.markdown(f"### {verdict}")
+        st.subheader(f"✨ Stargazing score for tonight in {location_name}")
 
-    # Chart
-    st.markdown("#### Score by hour (night only)")
-    plot_stargazing_score(score_df, location_name)
+        score_df = compute_stargazing_score(night, astro_info)
+        overall_score = score_df["score"].mean()
+
+        col1, col2 = st.columns(2, gap="large", border=True)
+
+        with col1:
+            st.metric("Overall stargazing score (night)", f"{overall_score:.0f} / 100")
+
+        # Score verdict
+        score_10 = overall_score / 10
+        if score_10 >= 8:
+            verdict = "✨ Incredible night — go outside!"
+        elif score_10 >= 6:
+            verdict = "🌙 Pretty good — worth a look."
+        elif score_10 >= 4:
+            verdict = "🌥 Meh — sky conditions mixed."
+        else:
+            verdict = "☁ Not a great night for stargazing."
+
+        with col2:
+            st.markdown(f"### {verdict}")
+
+        # Chart
+        st.markdown("#### Score by hour (night only)")
+        plot_stargazing_score(score_df, location_name)
 
 
 
