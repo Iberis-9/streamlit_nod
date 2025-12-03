@@ -68,18 +68,18 @@ set_bg_url("https://raw.githubusercontent.com/Iberis-9/streamlit_nod/93f63806a39
 
 # Global setup for Altair charts, making them transparent and styling axes
 alt.themes.register('transparent_theme', lambda: {
-    "config": {
+    "config": {                         # just so I remember what's exactly what:
         "background": "transparent",     # outer chart background
         "view": {
             "fill": "transparent",       # plot area background
-            "stroke": "transparent",     # remove border
+            "stroke": "transparent",      # border
         },
     "axis": {
             "grid": True,
-            "gridColor": "#FFFFFF",      # <<< change this to any color
-            "gridOpacity": 0.3,          # <<< adjust grid transparency
-            "tickColor": "#FFFFFF",      # axis tick marks
-            "labelColor": "#FFFFFF",     # axis label text
+            "gridColor": "#FFFFFF",      
+            "gridOpacity": 0.3,          # grid transparency
+            "tickColor": "#FFFFFF",     # axis tick marks
+            "labelColor": "#FFFFFF",   # axis label text
             "titleColor": "#FFFFFF",     # axis title text
         }
     }
