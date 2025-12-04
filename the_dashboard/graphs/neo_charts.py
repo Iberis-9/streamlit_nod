@@ -5,7 +5,7 @@ import pandas as pd
 
 
 def neo_summary_metrics(neo_df: pd.DataFrame) -> None:
-    """Show small KPI-style metrics for today's NEOs."""
+    
     if neo_df is None or neo_df.empty:
         st.info("No near-Earth objects available for today.")
         return
@@ -68,9 +68,9 @@ def neo_summary_metrics(neo_df: pd.DataFrame) -> None:
             st.caption(" ")
 
 
-
+# Scatter plot that shows distance vs size, hazardous have a separate/"warning" colour
 def neo_scatter_plot(neo_df: pd.DataFrame):
-    """Scatter: distance vs size, colored by hazardous."""
+    
     if neo_df is None or neo_df.empty:
         st.info("No near-Earth objects available for today.")
         return

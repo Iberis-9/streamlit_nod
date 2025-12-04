@@ -6,18 +6,7 @@ import streamlit as st
 
 
 def compute_stargazing_score(night_df: pd.DataFrame, astro_info: dict) -> pd.DataFrame:
-    """
-    Compute a 0–100 stargazing score for each night-time hour.
 
-    night_df must have columns:
-      - datetime
-      - cloud_cover (0–100)
-      - visibility_km
-      - humidity (0–100)
-
-    astro_info must contain:
-      - "moon_illumination" (string or number, 0–100)
-    """
     if night_df is None or night_df.empty:
         return pd.DataFrame(columns=["datetime", "score"])
 

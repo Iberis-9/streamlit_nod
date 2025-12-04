@@ -3,7 +3,6 @@ from datetime import date
 from typing import Dict, Any
 
 def neo_to_dataframe(raw_data: Dict[str, Any]) -> pd.DataFrame:
-    """Convert NASA NEO API daily feed into a clean pandas DataFrame."""
     
     # Identify the date key (NASA groups objects by date)
     date_key = list(raw_data["near_earth_objects"].keys())[0]

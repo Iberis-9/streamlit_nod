@@ -27,11 +27,11 @@ from functions.moon_phase import get_phase_info
 # Fetching/Loading and caching data from APIs
 
 # Wrapping the apis in @st.cache_data to cache results and avoid hitting rate limits/reduce lag
-@st.cache_data(ttl = 72000) # setting it to 20 hours as APOD only updates once a day
+@st.cache_data(ttl = 36000) #72000 setting it to 20 hours as APOD only updates once a day
 def get_apod_cached():
     return get_apod()
 
-@st.cache_data(ttl = 72000 )  #1800 og weather timer
+@st.cache_data(ttl = 1800 )  #1800 og weather timer
 def get_weather_cached(lat, lon):
     raw_weather = get_weather(lat, lon)
     df_hours, astro_info = weather_to_df(raw_weather)
